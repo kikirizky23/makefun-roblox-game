@@ -1,6 +1,7 @@
 -- init.server: boot, wiring, and the single server loop
 -- Creates the remotes folder, loads the best score, steps the game
 -- on Heartbeat and broadcasts a state snapshot at 20 Hz
+-- Auto-fire is server-side: there is no client Shoot action
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -60,19 +61,28 @@ local function onPlayerAction(player, action)
 		return
 	end
 	if action.type == "Input" then
-		local mx = tonumber(action.mx)
-		if not isFinite(mx) then mx = 0 end
-		mx = math.clamp(mx, -1, 1)
-		local my = tonumber(action.my)
-		if not isFinite(my) then my = 0 end
-		my = math.clamp(my, -1, 1)
-		GameState.setMove(mx, my)
-	elseif action.type == "Shoot" then
+		-- Touch target mode: the client sends where the ship should go.
+		-- The server moves there and stops exactly on arrival (no
+		-- overshoot/oscillation). The move vector is ignored in this mode.
 		local tx = tonumber(action.tx)
-		if not isFinite(tx) then return end
 		local ty = tonumber(action.ty)
-		if not isFinite(ty) then return end
-		GameState.shootBolt(tx, ty)
+		if isFinite(tx) and isFinite(ty) then
+			GameState.setTouchTarget(tx, ty)
+		else
+			-- Vector mode (keyboard, or touch released): no target.
+			GameState.clearTouchTarget()
+			local mx = tonumber(action.mx)
+			if not isFinite(mx) then
+				mx = 0
+			end
+			mx = math.clamp(mx, -1, 1)
+			local my = tonumber(action.my)
+			if not isFinite(my) then
+				my = 0
+			end
+			my = math.clamp(my, -1, 1)
+			GameState.setMove(mx, my)
+		end
 	elseif action.type == "Dash" then
 		GameState.tryDash()
 	end
